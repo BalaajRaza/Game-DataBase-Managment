@@ -2,309 +2,673 @@
 #include <fstream>
 #include <ctime>
 #include <string>
+#include <sstream> 
+
+#include "players.h"
+#include "games.h"
+
 using namespace std;
+
+const int QUEUE_SIZE = 1000;
+
+
 
 int randomgen() {
     return rand() % 1000 + 1;
 }
 
-// Gamenode Class Definition
-class Gamenode {
-    string Game_ID;
-    string Name;
-    string Developer;
-    string Publisher;
-    float F_size_GB;
-    int download;
+struct node {
+    playerNode player;
+    Games* games;
+    int gamesCount;
+    node* left;
+    node* right;
 
-public:
-    Gamenode();
-    Gamenode(string, string, string, string, float, int);
-    void set_val(string, string, string, string, float, int);
-    string getGameID() const { return Game_ID; }
-    void printGameData() const;
-
-
-    Gamenode() : Game_ID(""), Name(""), Developer(""), Publisher(""), F_size_GB(0.0), download(0) {}
-
-    Gamenode(string G, string N, string D, string Pu, float FG, int DOwn) {
-        Game_ID = G;
-        Name = N;
-        Developer = D;
-        Publisher = Pu;
-        F_size_GB = FG;
-        download = DOwn;
-    }
-
-    void printGameData() const {
-        cout << "Game ID: " << Game_ID << ", Name: " << Name << ", Developer: " << Developer
-            << ", Publisher: " << Publisher << ", File Size: " << F_size_GB << "GB"
-            << ", Downloads: " << download << endl;
-    }
-};
-
-
-// Game_play Class Definition
-class Game_play {
-    string Game_ID;
-    float ho_play;
-    int achive;
-
-public:
-    Game_play();
-    Game_play(string, float, int);
-    void set_val(string, float, int);
-    string getGameID() { return Game_ID; }
-    float getHoursPlayed() { return ho_play; }
-    int getAchievements() { return achive; }
+    node(const playerNode& p) 
+    : player(p), games(NULL), gamesCount(0), left(NULL), right(NULL) {}
     
-    Game_play() : Game_ID(""), ho_play(0.0), achive(0) {}
-
-    Game_play(string GID, float hours, int achievements) {
-        Game_ID = GID;
-        ho_play = hours;
-        achive = achievements;
+    void initGames(int size) {
+        games = new Games[size];
+        gamesCount = 0;
     }
 
-    void set_val(string GID, float hours, int achievements) {
-        Game_ID = GID;
-        ho_play = hours;
-        achive = achievements;
+    void addGame(const Games& game) {
+        games[gamesCount] = game;
+        gamesCount = gamesCount + 1;
+        //cout<<"Added Game"<<game.Game_ID<<"Counter = "<<gamesCount<<endl;
     }
 
+     node(const node& other) 
+        : player(other.player), gamesCount(other.gamesCount), left(NULL), right(NULL) {
+        if (other.games) {
+            games = new Games[gamesCount];
+            for (int i = 0; i < gamesCount; ++i) {
+                games[i] = other.games[i];
+            }
+        } else {
+            games = nullptr;
+        }
+    }
 
+    // Assignment operator
+    node& operator=(const node& other) {
+        if (this != &other) {
+            player = other.player;
+            gamesCount = other.gamesCount;
+
+            delete[] games;
+            if (other.games) {
+                games = new Games[gamesCount];
+                for (int i = 0; i < gamesCount; ++i) {
+                    games[i] = other.games[i];
+                }
+            } else {
+                games = nullptr;
+            }
+
+            left = right = NULL;  // Assignment operator shouldn’t copy left and right pointers.
+        }
+        return *this;
+    }
+
+    // Destructor to release allocated memory
+    ~node() {
+        delete[] games;
+    }
 };
 
-// playerNode Class Definition
-class playerNode {
-    string Player_ID;
-    string Name;
-    string phone_num;
-    string email;
-    string pass;
-    Game_play* gamesPlayed;  
-    int gameCount;           
+struct Queue {
+    node* data[QUEUE_SIZE];
+    int front;
+    int rear;
 
-public:
-    playerNode();
-    playerNode(string, string, string, string, string);
-    ~playerNode();  
-    void addGamePlay(Game_play*, int); 
-    void printPlayerData(); 
-    string getPlayerID() const { return Player_ID; }
+    Queue() : front(0), rear(0) {}
+
+    bool isEmpty() {
+        return front == rear;
+    }
+
+    void enqueue(node* n) {
+        if (rear < QUEUE_SIZE) {
+            data[rear++] = n;
+        }
+    }
+
+    node* dequeue() {
+        if (!isEmpty()) {
+            return data[front++];
+        }
+        return nullptr;
+    }
 };
 
-// Constructor implementations for playerNode
-playerNode::playerNode() : Player_ID(""), Name(""), phone_num(""), email(""), pass(""), gamesPlayed(nullptr), gameCount(0) {}
-
-playerNode::playerNode(string PI, string N, string pho, string em, string pw)
-    : Player_ID(PI), Name(N), phone_num(pho), email(em), pass(pw), gamesPlayed(nullptr), gameCount(0) {}
-
-
-playerNode::~playerNode() {
-    delete[] gamesPlayed;
-}
-
-void playerNode::addGamePlay(Game_play* gameArray, int count) {
-    gameCount = count;
-    gamesPlayed = new Game_play[gameCount];
-    for (int i = 0; i < gameCount; ++i) {
-        gamesPlayed[i] = gameArray[i]; 
-    }
-}
-
-void playerNode::printPlayerData() {
-    cout << "Player ID: " << Player_ID << endl;
-    cout << "Name: " << Name << endl;
-    cout << "Phone Number: " << phone_num << endl;
-    cout << "Email: " << email << endl;
-    cout << "Password: " << pass << endl;
-    cout << "Games Played:" << endl;
-    for (int i = 0; i < gameCount; ++i) {
-        cout << " - Game ID: " << gamesPlayed[i].getGameID()
-             << ", Hours Played: " << gamesPlayed[i].getHoursPlayed()
-             << ", Achievements: " << gamesPlayed[i].getAchievements() << endl;
-    }
-}
-
-// tree Class Definition
-class tree {
-    struct node {
-        playerNode play;
-        Gamenode game; 
-        node *left, *right;
-
-        node(const playerNode &p, const Gamenode &g) : play(p), game(g), left(nullptr), right(nullptr) {}
-    };
-
+// DBS class
+class DBS {
     node* root;
 
-    node* insertPlayerHelper(node* currentNode, const playerNode& newPlayer);
-    node* insertGameHelper(node* currentNode, const Gamenode& newGame);
-    Gamenode* searchGameByIDHelper(node* currentNode, const string& gameID); // Change return type here
+    node* insertPlayerHelper(node* currentNode, node* newPlayerNode);
+
+    void collectPlayerData(node* currentNode , pair<string , int> arr[] , int& count){
+        if(currentNode == NULL){
+            return;
+        }
+        arr[count++] = make_pair(currentNode->player.getPlayerID(), currentNode->player.getPlayerID().length());
+        collectPlayerData(currentNode->left , arr , count);
+        collectPlayerData(currentNode->right , arr , count);
+    }
+
+    void swap(pair<string , int>& a, pair<string , int>& b) {
+        pair<string , int> temp = a;
+        a = b;
+        b = temp;
+    }
+
+    void sortArray(pair<string , int> arr[] , int size){
+        for (int i = 0; i < size; i++) {
+            for (int j = i + 1; j < size; j++) {
+                if (arr[i].second < arr[j].second) {
+                    swap(arr[i], arr[j]);
+                }
+            }
+        }
+    }
 
 public:
-    tree() : root(nullptr) {}
+    DBS() : root(NULL) {}
 
     void readfile_players();
-    void read_game();
-
-    void insertPlayer(const playerNode& newPlayer);
-    void game_insert(const Gamenode& newGame);
-    
-    Gamenode* searchGameByID(const string& gameID);
-
+    void insertPlayer(node* newPlayerNode);
     void inorderTraversal() const;
     void inorderTraversalHelper(node* currentNode) const;
+
+    // Queury Functions
+    node* searchPlayer(const string& playerID);
+    node* searchPlayerHelper(node* currectNode , const string& playerID);
+
+    node* deletePlayer(const string& playerID);
+    node* deletePlayerHelper(node* currentNode, const string& playerID);
+
+    void saveData(const string& fileName);
+    void saveDataHelper(node* currentNode, ofstream& file);
+
+    void showNLayers(int N);
+
+    void showLayerNumber(const string& playerID);
+
+    void showPath(const string& playerID);
+
+    void editEntry(const string& playerID);
+
+    void showTopNPlayers(int N);
+
+    void hasPlayed(const string& playerID ,const string& gameName);
 };
 
-void tree::readfile_players() {
+void DBS::readfile_players() {
+    
+    int skip = (230046%100) * 10 + 100;
     ifstream file("Players.txt");
-    int seed = 230046;
-    int skip = (seed % 230046) * 10 + 100;
-
     if (!file) {
         cout << "Error: Could not open file." << endl;
         return;
     }
 
+    int line_no = 0;
     string line;
     while (getline(file, line)) {
-        if (skip < randomgen()) {
+        int random = randomgen();
+        if(random < skip){
             continue;
         }
-        size_t pos = 0;
-        string token;
 
+        stringstream ss(line);
         string playerData[5];
-        int index = 0;
-        while ((pos = line.find(',')) != string::npos && index < 5) {
-            playerData[index++] = line.substr(0, pos);
-            line.erase(0, pos + 1);
+        
+        // Reading first 5 fields: player data
+        for (int i = 0; i < 5; ++i) {
+            getline(ss, playerData[i], ',');
         }
 
-        string Player_ID = playerData[0];
-        string Name = playerData[1];
-        string phone_num = playerData[2];
+        string playerID = playerData[0];
+        string name = playerData[1];
+        string phone = playerData[2];
         string email = playerData[3];
-        string pass = playerData[4];
+        string password = playerData[4];
+        
 
-        playerNode player(Player_ID, Name, phone_num, email, pass);
+        playerNode player(playerID, name, phone, email, password);
 
         int gameCounter = 0;
-        Game_play* tempGames = new Game_play[200];
+        Game_play* gamesPlayed = new Game_play[1000];
 
-        while (!line.empty()) {
-            if ((pos = line.find(',')) == string::npos) break;
-            string Game_ID = line.substr(0, pos);
-            line.erase(0, pos + 1);
+        string gameID;
+        float hoursPlayed;
+        int achievements;
 
-            if ((pos = line.find(',')) == string::npos) break;
-            float hours_played = stof(line.substr(0, pos));
-            line.erase(0, pos + 1);
+        while (getline(ss, gameID, ',')) {
+            ss >> hoursPlayed;
+            ss.ignore();
+            ss >> achievements;
+            ss.ignore();
 
-            if ((pos = line.find(',')) == string::npos) break;
-            int achievements = stoi(line.substr(0, pos));
-            line.erase(0, pos + 1);
-
-            tempGames[gameCounter++] = Game_play(Game_ID, hours_played, achievements);
+            //cout<< "Game Id : " <<gameID<<" | Hours Played : "<<hoursPlayed<<" | Acheivements : "<<achievements<<endl;
+            gamesPlayed[gameCounter++] = Game_play(gameID, hoursPlayed, achievements);
         }
 
-        player.addGamePlay(tempGames, gameCounter);
+        player.addGamePlay(gamesPlayed, gameCounter);
+        node* playerNode = new node(player);
+        playerNode->initGames(gameCounter);
 
-        insertPlayer(player);
 
-        delete[] tempGames;
+        ifstream gamesFile("Games.txt");
+        if (!gamesFile) {
+            cout << "Error: Could not open Games.txt." << endl;
+            return;
+        }
+
+        string gameLine;
+        while (getline(gamesFile, gameLine)) {
+            stringstream gss(gameLine);
+            string gameID, name, developer, publisher;
+            float fileSize;
+            int downloads;
+
+            getline(gss, gameID, ',');
+            getline(gss, name, ',');
+            getline(gss, developer, ',');
+            getline(gss, publisher, ',');
+            gss >> fileSize;
+            gss.ignore();
+            gss >> downloads;
+
+            bool gamePlayed = false;
+            for (int i = 0; i < gameCounter; ++i) {
+                if (gamesPlayed[i].getGameID() == gameID) {
+                    gamePlayed = true;
+                    break;
+                }
+            }
+
+            if (gamePlayed) {
+                //cout << "Found game: " << gameID << " - " << name << endl;
+                Games gameInfo(gameID, name, developer, publisher, fileSize, downloads);
+                playerNode->addGame(gameInfo);
+            }
+        }
+
+        gamesFile.close();
+        insertPlayer(playerNode);
+        delete[] gamesPlayed;
     }
 
     file.close();
 }
-
-void tree::insertPlayer(const playerNode& newPlayer) {
-    root = insertPlayerHelper(root, newPlayer);
+// Insert player into the BST
+void DBS::insertPlayer(node* newPlayerNode) {
+    root = insertPlayerHelper(root,newPlayerNode);
 }
 
-tree::node* tree::insertPlayerHelper(node* currentNode, const playerNode& newPlayer) {
-    if (currentNode == nullptr) {
-        Gamenode defaultGame;
-        return new node(newPlayer, defaultGame);
+node* DBS::insertPlayerHelper(node* currentNode,node* newPlayerNode) {
+    if(currentNode == NULL){
+        return newPlayerNode;
     }
 
-    if (newPlayer.getPlayerID() < currentNode->play.getPlayerID()) {
-        currentNode->left = insertPlayerHelper(currentNode->left, newPlayer);
-    } else {
-        currentNode->right = insertPlayerHelper(currentNode->right, newPlayer);
+    if(newPlayerNode->player.getPlayerID() < currentNode->player.getPlayerID()){
+        currentNode->left = insertPlayerHelper(currentNode->left, newPlayerNode);
+    }
+    else{
+        currentNode->right = insertPlayerHelper(currentNode->right, newPlayerNode);
     }
 
     return currentNode;
 }
 
-void tree::game_insert(const Gamenode& newGame) {
-    root = insertGameHelper(root, newGame);
-}
-
-tree::node* tree::insertGameHelper(node* currentNode, const Gamenode& newGame) {
-    if (currentNode == nullptr) {
-        playerNode defaultPlayer; 
-        return new node(defaultPlayer, newGame);
-    }
-
-    if (newGame.getGameID() < currentNode->game.getGameID()) {
-        currentNode->left = insertGameHelper(currentNode->left, newGame);
-    } else {
-        currentNode->right = insertGameHelper(currentNode->right, newGame);
-    }
-
-    return currentNode;
-}
-
-Gamenode* tree::searchGameByID(const string& gameID) {
-    return searchGameByIDHelper(root, gameID);
-}
-
-Gamenode* tree::searchGameByIDHelper(node* currentNode, const string& gameID) {
-    if (currentNode == nullptr) {
-        return nullptr;
-    }
-    if (currentNode->game.getGameID() == gameID) {
-        return &currentNode->game; 
-    }
-    if (gameID < currentNode->game.getGameID()) {
-        return searchGameByIDHelper(currentNode->left, gameID); 
-    } else {
-        return searchGameByIDHelper(currentNode->right, gameID); 
-    }
-}
-
-void tree::inorderTraversal() const {
+// Inorder traversal of the BST
+void DBS::inorderTraversal() const {
     inorderTraversalHelper(root);
 }
 
-void tree::inorderTraversalHelper(node* currentNode) const {
-    if (currentNode != nullptr) {
+void DBS::inorderTraversalHelper(node* currentNode) const {
+    if (currentNode != NULL) {
         inorderTraversalHelper(currentNode->left);
-        cout << "Player ID: " << currentNode->play.getPlayerID() << ", Game ID: " << currentNode->game.getGameID() << endl;
+        currentNode->player.printPlayerData();
+
+        // for (int i = 0; i < currentNode->gamesCount; ++i) {
+        //     cout << "Game ID: " << currentNode->games[i].Game_ID << " | "
+        //          << "Name: " << currentNode->games[i].Name << " | "
+        //          << "Developer: " << currentNode->games[i].Developer << " | "
+        //          << "Publisher: " << currentNode->games[i].Publisher << " | "
+        //          << "File Size: " << currentNode->games[i].size_GB << " GB | "
+        //          << "Downloads: " << currentNode->games[i].download << endl;
+        // }
         inorderTraversalHelper(currentNode->right);
     }
 }
 
-int main() {
+// Queury Functions;
 
-    tree gameTree;
-    gameTree.readfile_players();
+node* DBS::searchPlayer(const string& playerID){
+    return searchPlayerHelper(root, playerID);
+}
 
-    gameTree.game_insert(Gamenode("G01", "Game 1", "Dev A", "Pub A", 20.0, 100));
-    gameTree.game_insert(Gamenode("G02", "Game 2", "Dev B", "Pub B", 15.0, 200));
+node* DBS::searchPlayerHelper(node* currentNode, const string& playerID){
+    if(currentNode == NULL){
+        return NULL;
+    }
+    if (currentNode->player.getPlayerID() == playerID){
+        return currentNode;
+    }
+    if(playerID < currentNode->player.getPlayerID()){
+        return searchPlayerHelper(currentNode->left, playerID);
+    }
+    else{
+        return searchPlayerHelper(currentNode->right, playerID);
+    }
+}
 
+node* DBS::deletePlayer(const string& playerID){
+    root = deletePlayerHelper(root, playerID);
+    return root;
+}
 
-    Gamenode* foundGame = gameTree.searchGameByID("G01");
-    if (foundGame) {
-        foundGame->printGameData();
-    } else {
-        cout << "Game not found!" << endl;
+node* DBS::deletePlayerHelper(node* currentNode , const string& playerID){
+    if(currentNode == NULL){
+        return NULL;
+    }
+    if(playerID < currentNode->player.getPlayerID()){
+        currentNode->left = deletePlayerHelper(currentNode->left, playerID);
+    }
+    else if(playerID > currentNode->player.getPlayerID()){
+        currentNode->right = deletePlayerHelper(currentNode->right, playerID);
+    }
+    else{
+        if(currentNode->left == NULL){
+            node* temp = currentNode->right;
+            delete currentNode;
+            return temp;
+        }
+        else if(currentNode->right == NULL){
+            node* temp = currentNode->left;
+            delete currentNode;
+            return temp;
+        }
+        else{
+            node* temp = currentNode->right;
+            while(temp->left != NULL){
+                temp = temp->left;
+            }
+            currentNode->player = temp->player;
+            currentNode->right = deletePlayerHelper(currentNode->right, temp->player.getPlayerID());
+        }
+    }
+    return currentNode;
+}
+
+void DBS::saveData(const string& fileName){
+    ofstream file(fileName);
+    if (!file.is_open()) {
+        cout << "Error opening file for writing." << endl;
+        return;
+    }
+    saveDataHelper(root, file);
+    file.close();
+}
+
+void DBS::saveDataHelper(node* currentNode, ofstream& file){
+    if(currentNode != NULL){
+        file << currentNode->player.getPlayerID() << ","
+             << currentNode->player.getPlayerName() << ","
+             << currentNode->player.getPhoneNum() << ","
+             << currentNode->player.getEmail() << ","
+             << currentNode->player.getPass() << ",";
+
+    for(int i = 0; i < currentNode->gamesCount; i++){
+            file << currentNode->games[i].Game_ID << ","
+                 << currentNode->games[i].Name << ","
+                 << currentNode->games[i].Developer << ","
+                 << currentNode->games[i].Publisher << ","
+                 << currentNode->games[i].size_GB << ","
+                 << currentNode->games[i].download << ",";
+    }
+    file << endl;
+    file << endl;
+    file << endl;
+    file << endl;
+
+    saveDataHelper(currentNode->left , file);
+    saveDataHelper(currentNode->right, file);
+
+    }
+}
+
+void DBS::showNLayers(int n) {
+    if(n <= 0){
+        cout<<"Invalid Number of Layers!"<<endl;
+        return;
+    }
+    Queue q;
+    q.enqueue(root);
+
+    int currrentLayer = 0;
+    while(!q.isEmpty() && currrentLayer < n){
+
+        int nodesInCurrentLayer = q.rear - q.front;
+        if(nodesInCurrentLayer > 0){
+            cout<<"Layer "<<currrentLayer+1<<": ";
+        
+            for(int i=0;i<nodesInCurrentLayer;i++){
+
+                node* currentNode = q.dequeue();
+                cout<<currentNode->player.getPlayerID()<<" ";
+
+                if(currentNode->left != NULL){
+                    q.enqueue(currentNode->left);
+                }
+
+                if(currentNode->right != NULL){
+                    q.enqueue(currentNode->right);
+                }
+            }
+            cout<<endl;
+            currrentLayer++;
+        }
+        
+    }
+    if(currrentLayer < n){
+        cout<<"Not enough layers to show."<<endl;
     }
 
+}
+
+void DBS::showLayerNumber(const string& playerID){
+    node* playerNode = searchPlayer(playerID);
+    
+    if(playerNode == NULL){
+        cout<<"Player not found."<<endl;
+        return;
+    }
+
+    Queue q;
+    q.enqueue(root);
+    int currentLayer = 0;
+    while(!q.isEmpty()){
+        int nodesInCurrentLayer = q.rear - q.front;
+        currentLayer++;
+
+        for(int i=0;i<nodesInCurrentLayer;i++){
+            node* currentNode = q.dequeue();
+            if(currentNode->player.getPlayerID() == playerID){
+                cout<<"Player "<<playerID<<" is in Layer "<<currentLayer<<endl;
+                return;
+            }
+            if(currentNode->left != NULL){
+                q.enqueue(currentNode->left);
+            }
+            if(currentNode->right != NULL){
+                q.enqueue(currentNode->right);
+            }
+        }
+    }
+}
+
+void DBS::showPath(const string& playerID){
+    node* currentNode = root;
+    string path = "";
+
+    while(currentNode!= NULL){
+        path += currentNode->player.getPlayerID();
+
+        if(currentNode->player.getPlayerID() == playerID){
+            cout<<"Path: "<<path<<endl;
+            return;
+        }
+        else if(playerID < currentNode->player.getPlayerID()){
+            path+="->";
+            currentNode = currentNode->left;
+        }
+        else{
+            path+="->";
+            currentNode = currentNode->right;
+        }
+    }
+
+    cout<<"Player "<<playerID <<" not found in data.\n";
+}
+
+void DBS::editEntry(const string& playerID){
+    node* playerNode = searchPlayer(playerID);
+    if(playerNode == NULL){
+        cout<<"Player not found."<<endl;
+        return;
+    }
+    cout<<"Enter new name: ";
+    string newName;
+    cin>>newName;
+    playerNode->player.setPlayerName(newName);
+
+    cout<<"Enter Player ID: ";
+    string newID;
+    cin>>newID;
+    playerNode->player.setPlayerID(newID);
+
+    cout<<"Enter Player Phone Number: ";
+    string newPhoneNum;
+    cin>>newPhoneNum;
+    playerNode->player.setPhoneNum(newPhoneNum);
+
+    cout<<"Enter Player Email: ";
+    string newEmail;
+    cin>>newEmail;
+    playerNode->player.setEmail(newEmail);
+
+    cout<<"Enter Player Password: ";
+    string newPass;
+    cin>>newPass;
+    playerNode->player.setPass(newPass);
+
+    cout<<"Player "<<playerID<<" updated successfully."<<endl;
+
+
+    
+}
+
+void DBS::showTopNPlayers(int N){
+    int max_size = 1000;
+    pair<string , int> array[max_size];
+    int count = 0;
+
+    collectPlayerData(root , array , count);
+
+    int size = count;
+    for(int i=0;i<N && i<size;i++){
+        sortArray(array , size);
+        cout<<"Player "<<array[i].first<<" has "<<array[i].second<<" games."<<endl;
+    }
+
+}
+
+void DBS::hasPlayed(const string& playerID ,const string& gameName){
+    node* playerNode = searchPlayer(playerID);
+    if(playerNode == NULL){
+        cout<<"Player not found."<<endl;
+        return;
+    }
+    for(int i=0;i<playerNode->gamesCount;i++){
+        if(playerNode->games[i].Name == gameName){
+            cout<<"Player "<<playerID<<" has played "<<gameName<<endl;
+            return;
+        }
+    }
+    cout<<"Player "<<playerID<<" has not played "<<gameName<<endl;
+
+}
+
+
+int main() {
+
+    srand(time(0));
+    DBS gameTree;
+    gameTree.readfile_players();
     gameTree.inorderTraversal();
+    cout<<"Data Loaded.\n";
+
+    int choice;
+    do{
+        cout<<"\n--QUEURIES--\n";
+        cout<<"1. Search A Player\n";
+        cout<<"2. Delete Record\n";
+        cout<<"3. Save Data\n";
+        cout<<"4. Show N Layers\n";
+        cout<<"5. Show Layer Number\n";
+        cout<<"6. Show Path\n";
+        cout<<"7. Edit Entry\n";
+        cout<<"8. Top N Players\n";
+        cout<<"9. Has Played\n";
+        cout<<"0. Exit\n";
+
+        cout<<"Select : ";
+        cin>>choice;
+        string playerID;
+
+        if(choice == 1){
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            node* playerNode = gameTree.searchPlayer(playerID);
+            if(playerNode != NULL){
+                cout<<"Player Found : \n";
+                playerNode->player.printPlayerData();
+            }
+            else{
+                cout<<"Player Not Found\n";
+            }
+        }
+
+        else if(choice == 2){
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            gameTree.deletePlayer(playerID);
+            cout<<"Player Deleted\n";
+        }
+
+        else if(choice == 3){
+            string fileName ;//= "database.csv";
+            cout<<"Enter File Name: ";
+            cin>>fileName;
+            gameTree.saveData(fileName);
+            cout<<"Data Saved to "<<fileName<<endl;
+
+        }
+
+        else if(choice == 4){
+            int n;
+            cout<<"Enter Number of Layers: ";
+            cin>>n;
+            gameTree.showNLayers(n);
+        }
+
+        else if(choice == 5){
+            string playerID;
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            gameTree.showLayerNumber(playerID);
+        }
+
+        else if(choice == 6){
+            string playerID;
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            gameTree.showPath(playerID);
+        }
+
+        else if(choice == 7){
+            string playerID;
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            gameTree.editEntry(playerID);
+        }
+
+        else if(choice == 8){
+            int N;
+            cout<<"Enter Number of Players: ";
+            cin>>N;
+            gameTree.showTopNPlayers(N);
+        }
+
+        else if(choice == 9){
+            string playerID;
+            cout<<"Enter Player ID: ";
+            cin>>playerID;
+            string gameName;
+            cout<<"Enter Game Name: ";
+            cin>>gameName;
+            gameTree.hasPlayed(playerID,gameName);
+        }
+
+        else if(choice == 0){
+            cout<<"Exiting...\n";
+        }
+
+    }while(choice!=0);
 
     return 0;
 }
